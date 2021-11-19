@@ -7,23 +7,8 @@ const defaultIpfsOptions = {
   'port': '5001', 
   'protocol': 'https'
 };
-const allowedEndpoints = ['add','get'];
 let jobRunID = 1;
 
-// Define custom error scenarios for the API.
-// Return true for the adapter to retry.
-const customError = (data) => {
-  if (data.Response === 'Error') return true
-  return false
-}
-
-const validateInput = (input) => {
-  if ( input.endpoint && !allowedEndpoints.includes(input.endpoint) ) {
-    return throwError(`Endpoint not currently supported. Supported endpoints are ${allowedEndpoints.join(', ')}. '${input.endpoint}'' provided`);
-  }
-
-  return true;
-}
 
 const throwError = (message) => {
   throw new AdapterError({
@@ -43,7 +28,7 @@ const success = (data) => {
   }
 }
 
-const error = (message, code) => {
+const Error = (message, code) => {
   return {
     jobRunID: jobRunID,
     status: "errored",
@@ -54,35 +39,45 @@ const error = (message, code) => {
 
 const createRequest = async (input, callback) => {  // The Validator helps you validate the Chainlink request data
   jobRunID = input.id || 1; 
-  input.endpoint = input.endpoint || 'add';
   const ipfs = ipfsClient.create(defaultIpfsOptions);
   
-  try {
-    validateInput(input)
-  } catch (error) {
-    return callback(400, error('Endpoint invalid', 400));
-  }
-
-  switch(input.endpoint) {
-    case 'add': 
+  switch(input.action) {
+    case 'addEvent': 
       try {
-        const result = await ipfs.add(input.data);
+        const jsonData = `{"name": "${input.name}","description": "${input.description}"}`;
+        const result = await ipfs.add(jsonData);
         return callback(200, success(result));  
       } catch (error) {
         console.log("ERR", error);
-        // return callback(error.statusCode || 500, Requester.errored(jobRunId, error, error.statusCode));
+        return callback(error.statusCode || 500, Requester.errored(jobRunId, error, error.statusCode));
       };
       break;
 
-    case 'get': 
+    case 'addRegistration': 
+      if ( !input.name || !input.company || !input.email ) {
+        return callback(400, Error("Must provide name, company, and encrypted email", 400));
+      }
+      try {
+        const jsonData = `{"name": "${input.name}","company": "${input.company}","email": "${input.email}"}`;
+        const result = await ipfs.add(jsonData);
+        return callback(200, success(result));  
+      } catch (error) {
+        console.log("ERR", error);
+        return callback(error.statusCode || 500, Requester.errored(jobRunId, error, error.statusCode));
+      };
+      break;
+
+    case 'getEntity': 
       if ( !input.cid ) {
-        return callback(400, error("Must provide CID", 400));
+        return callback(400, Error("Must provide CID", 400));
       }
       const contents = await toBuffer(ipfs.cat(input.cid));
       const file = JSON.parse(Buffer.from(contents.buffer).toString());
       return callback(200, success(file)); 
       break;
   }
+
+  return callback(400, Error("Action not recognized", 400));
 }
 
 // This is a wrapper to allow the function to work with
