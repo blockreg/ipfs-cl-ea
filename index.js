@@ -43,8 +43,11 @@ const createRequest = async (input, callback) => {  // The Validator helps you v
   
   switch(input.action) {
     case 'addEvent': 
+      if ( !input.name || !input.eventId ) {
+        return callback(400, Error("Must provide name and event ID", 400));
+      }
       try {
-        const jsonData = `{"name": "${input.name}","description": "${input.description}"}`;
+        const jsonData = `{"id":"${input.eventId}", "name":"${input.name}", "description":"${input.description || ''}"}`;
         const result = await ipfs.add(jsonData);
         return callback(200, success(result));  
       } catch (error) {
@@ -54,11 +57,11 @@ const createRequest = async (input, callback) => {  // The Validator helps you v
       break;
 
     case 'addRegistration': 
-      if ( !input.name || !input.company || !input.email ) {
-        return callback(400, Error("Must provide name, company, and encrypted email", 400));
+      if ( !input.name || !input.email || !input.registrationId ) {
+        return callback(400, Error("Must provide name, encrypted email, and registration ID", 400));
       }
       try {
-        const jsonData = `{"name": "${input.name}","company": "${input.company}","email": "${input.email}"}`;
+        const jsonData = `{"id":"${input.registrationId}", "name":"${input.name}", "company":"${input.company || ''}", "email":"${input.email}"}`;
         const result = await ipfs.add(jsonData);
         return callback(200, success(result));  
       } catch (error) {
